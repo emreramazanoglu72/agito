@@ -77,9 +77,9 @@ docker-compose up -d --build
     ```bash
     yarn dev
     ```
-    -   **Web App**: [http://localhost:3001](http://localhost:3001)
-    -   **API**: [http://localhost:3000](http://localhost:3000)
-    -   **API Swagger**: [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
+    -   **Web App**: [http://agito.emreramazanoglu.com.tr](http://agito.emreramazanoglu.com.tr)
+    -   **API**: [https://api-agito.emreramazanoglu.com.tr](pi-agito.emreramazanoglu.com.tr)
+    -   **API Swagger**: [http://localhost:3000/api/docs](http://pi-agito.emreramazanoglu.com.tr/api/docs)
 
 ## 📡 Ports
 
