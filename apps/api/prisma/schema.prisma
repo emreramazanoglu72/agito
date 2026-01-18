@@ -1,0 +1,584 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------
+// 1. Corporate Entities
+// -----------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  HR_MANAGER
+  EMPLOYEE
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  NEEDS_INFO
+  APPROVED
+  REJECTED
+  ACTIVE
+}
+
+enum CorporatePolicyStatus {
+  PENDING
+  ACTIVE
+  CANCELLED
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  domain    String   @unique
+  isActive  Boolean  @default(true)
+
+  users     User[]
+  companies Company[]
+  applications Application[]
+  corporatePolicies CorporatePolicy[]
+  supportTickets SupportTicket[]
+  employees Employee[]
+  policies  Policy[]
+  operations BulkOperation[]
+  activities Activity[]
+  refreshTokens RefreshToken[]
+  employeeDocuments EmployeeDocument[]
+  departments Department[]
+  policyTypes PolicyType[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(EMPLOYEE)
+  name         String?
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("refresh_tokens")
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  taxId     String
+  address   String?
+  city      String?
+
+  email       String?
+  phone       String?
+  website     String?
+  sector      String?
+  employeeCount Int?
+  
+  // Relations
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  applications Application[]
+  corporatePolicies CorporatePolicy[]
+  employees Employee[]
+  operations BulkOperation[]
+  policies    Policy[]
+  departments Department[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([taxId, tenantId])
+  @@index([tenantId])
+  @@map("companies")
+}
+
+model InsurancePackage {
+  id           String   @id @default(uuid())
+  name         String
+  tier         String
+  priceRange   String
+  focus        String
+  highlights   String[]
+  minEmployees Int?
+  isActive     Boolean  @default(true)
+  carriers     Carrier[] @relation("PackageCarriers")
+  applications Application[]
+  corporatePolicies CorporatePolicy[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("insurance_packages")
+}
+
+model Carrier {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  packages  InsurancePackage[] @relation("PackageCarriers")
+  applications Application[]
+  corporatePolicies CorporatePolicy[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("carriers")
+}
+
+model Application {
+  id            String            @id @default(uuid())
+  packageId     String
+  package       InsurancePackage  @relation(fields: [packageId], references: [id])
+  carrierId     String?
+  carrier       Carrier?          @relation(fields: [carrierId], references: [id])
+  companyId     String?
+  company       Company?          @relation(fields: [companyId], references: [id])
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  documents     ApplicationDocument[]
+  updates       ApplicationUpdate[]
+  corporatePolicy CorporatePolicy?
+
+  companyName   String
+  companyEmail  String
+  companyPhone  String
+  employeeCount Int
+  employeeList  String[]
+  hasDocuments  Boolean          @default(false)
+  status        ApplicationStatus @default(SUBMITTED)
+  adminNote     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("applications")
+}
+
+model CorporatePolicy {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  applicationId String   @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  packageId     String
+  package       InsurancePackage @relation(fields: [packageId], references: [id])
+  carrierId     String?
+  carrier       Carrier? @relation(fields: [carrierId], references: [id])
+  companyName   String
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id])
+  policyType    PolicyTypeEnum?
+  status        CorporatePolicyStatus @default(PENDING)
+  premiumRange  String?
+  startDate     DateTime?
+  endDate       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("corporate_policies")
+}
+
+model ApplicationDocument {
+  id            String   @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  name          String
+  size          Int
+  type          String
+  url           String
+  key           String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([applicationId])
+  @@map("application_documents")
+}
+
+model ApplicationUpdate {
+  id            String   @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  message       String
+  createdAt     DateTime @default(now())
+
+  @@index([applicationId])
+  @@map("application_updates")
+}
+
+model SupportTicket {
+  id             String              @id @default(uuid())
+  tenantId       String
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  subject        String
+  category       String
+  message        String
+  status         SupportTicketStatus @default(OPEN)
+  createdByEmail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String
+  code        String
+  description String?
+  isActive    Boolean  @default(true)
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  managerId   String?
+  manager     Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
+
+  employees   Employee[] @relation("EmployeeDepartment")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, companyId, code])
+  @@unique([tenantId, companyId, name])
+  @@index([tenantId])
+  @@index([companyId])
+  @@map("departments")
+}
+
+model Employee {
+  id          String   @id @default(uuid())
+  tcNo        String   // National ID
+  firstName   String
+  lastName    String
+  email       String?
+  phoneNumber String?
+  birthDate   DateTime
+  avatarUrl   String?
+
+  departmentId String?
+  department   Department? @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  managedDepartments Department[] @relation("DepartmentManager")
+  
+  // Relations
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  policies    Policy[]
+  documents   EmployeeDocument[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([tcNo, tenantId])
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([tenantId])
+  @@index([lastName])
+  @@map("employees")
+}
+
+model EmployeeDocument {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  name        String
+  size        Int
+  type        String   // MIME type
+  url         String
+  key         String?  // R2/S3 key
+  
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("employee_documents")
+}
+
+// -----------------------------------------------------
+// 2. Insurance Domain
+// -----------------------------------------------------
+
+// Legacy Enum (Keeping for backward compatibility if needed, or to be phased out)
+enum PolicyTypeEnum {
+  TSS // Tamamlayici Saglik
+  OSS // Ozel Saglik
+  LIFE // Hayat
+  FERDI_KAZA
+}
+
+model PolicyType {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   // e.g. "tss", "oss"
+  description String?
+  color       String?  // Hex code for UI badges
+  icon        String?  // Icon name
+  isActive    Boolean  @default(true)
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  policies    Policy[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, slug])
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("policy_types")
+}
+
+enum PolicyStatus {
+  ACTIVE
+  CANCELLED
+  PENDING_RENEWAL
+  EXPIRED
+}
+
+model Policy {
+  id          String       @id @default(uuid())
+  policyNo    String       // Generated by Core System
+  type        PolicyTypeEnum // Keeping for legacy, optional if fully migrating
+  status      PolicyStatus @default(ACTIVE)
+  
+  startDate   DateTime
+  endDate     DateTime
+  premium     Decimal      @db.Decimal(10, 2)
+  currency    String       @default("TRY")
+
+  // Relations
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  // New Relation to Dynamic Policy Type
+  policyTypeId String?
+  policyType   PolicyType? @relation(fields: [policyTypeId], references: [id])
+  
+  autoRenew   Boolean  @default(false)
+  packageName String?  // e.g. "Gold Package"
+
+  coverages   PolicyCoverage[]
+  payments    PolicyPayment[]
+  documents   PolicyDocument[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([policyNo, tenantId])
+  @@index([employeeId])
+  @@index([companyId])
+  @@index([tenantId])
+  @@index([policyTypeId])
+  @@map("policies")
+}
+
+// -----------------------------------------------------
+// 3. Operational Domain (Async Jobs)
+// -----------------------------------------------------
+
+enum OperationType {
+  BULK_UPLOAD
+  BULK_ENDORSEMENT
+}
+
+enum OperationStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL_SUCCESS
+}
+
+model BulkOperation {
+  id          String          @id @default(uuid())
+  type        OperationType
+  status      OperationStatus @default(QUEUED)
+  
+  // Metadata about the job
+  fileName    String?         // If Excel upload
+  totalRows   Int             @default(0)
+  processedRows Int           @default(0)
+  errorCount  Int             @default(0)
+  
+  resultSummary Json?         // Store structured results/errors summary
+
+  // Relations
+  tenantId   String
+  tenant     Tenant  @relation(fields: [tenantId], references: [id])
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("bulk_operations")
+}
+
+// -----------------------------------------------------
+// 4. Policy Details (Sub-models)
+// -----------------------------------------------------
+
+model PolicyCoverage {
+  id          String   @id @default(uuid())
+  policyId    String
+  policy      Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  limit       Decimal? @db.Decimal(15, 2)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("policy_coverages")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model PolicyPayment {
+  id          String        @id @default(uuid())
+  policyId    String
+  policy      Policy        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  
+  installmentNo Int
+  amount      Decimal       @db.Decimal(10, 2)
+  dueDate     DateTime
+  paidDate    DateTime?
+  status      PaymentStatus @default(PENDING)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("policy_payments")
+}
+
+model PolicyDocument {
+  id          String   @id @default(uuid())
+  policyId    String
+  policy      Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  
+  type        String   // e.g., "POLICY_PDF", "RECEIPT", "ENDORSEMENT"
+  fileName    String
+  fileUrl     String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("policy_documents")
+}
+
+// -----------------------------------------------------
+// 5. System Domain
+// -----------------------------------------------------
+
+enum ActivityType {
+  COMPANY_CREATED
+  COMPANY_UPDATED
+  COMPANY_DELETED
+  DEPARTMENT_CREATED
+  DEPARTMENT_UPDATED
+  DEPARTMENT_DELETED
+  EMPLOYEE_CREATED
+  EMPLOYEE_UPDATED
+  EMPLOYEE_DELETED
+  POLICY_CREATED
+  POLICY_UPDATED
+  POLICY_DELETED
+  BULK_UPLOAD_COMPLETED
+  BULK_UPLOAD_FAILED
+}
+
+model Activity {
+  id          String       @id @default(uuid())
+  type        ActivityType
+  title       String
+  description String?
+  
+  // Link to the user who performed the action
+  userId      String?
+  userName    String?      // Denormalized for display speed
+
+  tenantId    String
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  
+  // Link to the target entity
+  targetId    String?
+  targetType  String?      // e.g., "Company", "Employee", "Policy"
+  
+  createdAt   DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([tenantId])
+  @@map("activities")
+}

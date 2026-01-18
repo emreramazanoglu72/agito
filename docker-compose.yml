@@ -1,0 +1,109 @@
+services:
+  # -----------------------------
+  # PostgreSQL (Primary Database)
+  # -----------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: agito_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: agito
+      POSTGRES_PASSWORD: agito123
+      POSTGRES_DB: agito_insurance
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - agito_network
+
+  # -----------------------------
+  # Redis (Cache & Queue Status)
+  # -----------------------------
+  redis:
+    image: redis:alpine
+    container_name: agito_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - agito_network
+
+  # -----------------------------
+  # Elasticsearch (Search Engine)
+  # -----------------------------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: agito_elastic
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+    networks:
+      - agito_network
+
+  # -----------------------------
+  # Kibana (Visualization UI)
+  # -----------------------------
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: agito_kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - agito_network
+
+  # -----------------------------
+  # App (Turborepo - Production)
+  # -----------------------------
+  app:
+    image: node:20-bullseye
+    container_name: agito_app
+    working_dir: /app
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://agito:agito123@postgres:5432/agito_insurance
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ELASTIC_NODE: http://elasticsearch:9200
+      ELASTICSEARCH_NODE: http://elasticsearch:9200
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      YARN_REGISTRY: https://registry.npmjs.org
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+      YARN_NETWORK_CONCURRENCY: 1
+      YARN_HTTP_TIMEOUT: 600000
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    volumes:
+      - .:/app
+    command: >
+      sh -c "if [ ! -d node_modules ]; then
+      yarn config set registry https://registry.npmjs.org &&
+      yarn install --frozen-lockfile --production=false --network-timeout 600000 --network-concurrency 1;
+      fi &&
+      yarn turbo run build &&
+      NODE_ENV=production yarn turbo run start --parallel"
+    depends_on:
+      - postgres
+      - redis
+      - elasticsearch
+    networks:
+      - agito_network
+
+volumes:
+  postgres_data:
+  elastic_data:
+
+
+networks:
+  agito_network:
+    driver: bridge

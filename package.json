@@ -1,0 +1,26 @@
+{
+  "name": "agito-case-sigoto",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "yarn@1.22.22",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "resolutions": {
+    "@elastic/elasticsearch": "8.11.0"
+  },
+  "scripts": {
+    "start": "turbo run start --parallel",
+    "dev": "turbo run dev --parallel",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0",
+    "turbo": "latest"
+  },
+  "dependencies": {
+    "tailwindcss-primeui": "^0.6.1"
+  }
+}

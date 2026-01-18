@@ -1,0 +1,27 @@
+import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+
+export class CreatePolicyTypeDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  slug: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  color?: string;
+
+  @IsString()
+  @IsOptional()
+  icon?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}
